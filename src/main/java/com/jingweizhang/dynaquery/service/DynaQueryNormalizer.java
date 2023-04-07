@@ -4,11 +4,7 @@ import com.jingweizhang.dynaquery.dto.DynaQueryRequest;
 import com.jingweizhang.dynaquery.exception.*;
 import com.jingweizhang.dynaquery.extension.ViewEntity;
 import com.jingweizhang.dynaquery.model.*;
-import org.springframework.beans.factory.config.BeanDefinition;
-import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
-import org.springframework.core.type.filter.AssignableTypeFilter;
 
-import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -20,55 +16,20 @@ import java.util.stream.Collectors;
  * @Author jingwei.zhang on 2023/4/3
  */
 class DynaQueryNormalizer {
-    private final Map<Class<?>, Map<String, Class<?>>> viewEntityDictionary;
-
-    public DynaQueryNormalizer(String packageFullNamespace) {
-        this.viewEntityDictionary = this.initializeViewEntityDictionary(packageFullNamespace);
+    private final ViewEntityRegistry viewEntityRegistry;
+    public DynaQueryNormalizer(ViewEntityRegistry viewEntityRegistry) {
+        this.viewEntityRegistry = viewEntityRegistry;
     }
 
-    private Map<Class<?>, Map<String, Class<?>>> initializeViewEntityDictionary(String packageFullNamespace) {
-        Map<Class<?>, Map<String, Class<?>>> viewEntityDictionary = new HashMap<>();
+    public DynaQuery normalize(DynaQueryRequest dynaQueryRequest) {
 
-        try {
-            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-            ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(false);
-            scanner.addIncludeFilter(new AssignableTypeFilter(ViewEntity.class));
 
-            for (BeanDefinition beanDefinition : scanner.findCandidateComponents(packageFullNamespace)) {
-                Class<?> clazz = Class.forName(beanDefinition.getBeanClassName(), false, classLoader);
-                viewEntityDictionary.put(clazz, this.extractEntityMetaData("", clazz, new HashMap<>()));
-            }
-        } catch (Exception ex) {
-            throw new FailedToFindViewEntityClassException(ex);
-        }
+        Class<?> viewEntityClazz = this.viewEntityRegistry.getViewEntityClass(dynaQueryRequest.getTargetView());
 
-        return viewEntityDictionary;
-    }
-
-    private Map<String, Class<?>> extractEntityMetaData(String root, Class<?> clazz, Map<String, Class<?>> map) {
-        for (Field field : clazz.getDeclaredFields()) {
-            String path = root == null || root.isEmpty() ? field.getName() : root + '.' + field.getName();
-            if (this.isBuiltInType(field.getType())) {
-                map.put(path, field.getType());
-            } else {
-                this.extractEntityMetaData(path, field.getType(), map);
-            }
-        }
-
-        return map;
-    }
-
-    private boolean isBuiltInType(Class<?> type) {
-        return type.isPrimitive() || type.equals(Boolean.class) || type.equals(Byte.class) ||
-                type.equals(Character.class) || type.equals(Short.class) || type.equals(Integer.class) ||
-                type.equals(Long.class) || type.equals(Float.class) || type.equals(Double.class) ||
-                type.equals(String.class) || type.equals(Instant.class) || type.isEnum();
-    }
-
-    public DynaQuery normalize(Class<?> viewEntityClazz, DynaQueryRequest dynaQueryRequest) {
-        this.validate(viewEntityClazz, dynaQueryRequest);
+        this.validate(dynaQueryRequest);
 
         DynaQuery query = new DynaQuery();
+        query.setTargetView(this.normalizeTargetView(dynaQueryRequest.getTargetView()));
         query.setProjectBys(this.normalizeProjectBy(viewEntityClazz, dynaQueryRequest.getProjections()));
         query.setFilterCondition(this.normalizeFilterCondition(viewEntityClazz, dynaQueryRequest.getFilterCondition()));
         query.setGroupBy(this.normalizeGroupBy(viewEntityClazz, dynaQueryRequest.getGroup()));
@@ -77,12 +38,24 @@ class DynaQueryNormalizer {
         return query;
     }
 
+    private String normalizeTargetView(String targetView) {
+        if (targetView == null || targetView.isEmpty()) {
+            throw new InvalidViewEntityException("Target view is null or empty string");
+        }
+
+        if (!this.viewEntityRegistry.isSupported(targetView)) {
+            throw new InvalidViewEntityException(targetView + " is not a valid view entity");
+        }
+
+        return targetView;
+    }
+
     private List<ProjectBy> normalizeProjectBy(Class<?> viewEntityClazz, List<DynaQueryRequest.ProjectBy> projectBys) {
         if (projectBys == null || projectBys.isEmpty()) {
             return Collections.emptyList();
         }
 
-        return projectBys.stream().map((x) -> ProjectBy.of(x.getField(), x.isVisible())).collect(Collectors.toList());
+        return projectBys.stream().map((x) -> com.jingweizhang.dynaquery.model.ProjectBy.of(x.getField(), x.isVisible())).collect(Collectors.toList());
     }
 
     /**
@@ -110,7 +83,7 @@ class DynaQueryNormalizer {
             for (DynaQueryRequest.FilterBy filter : unaryFilterCondition.getFilters()) {
                 if (syntheticFields.contains(filter.getField())) continue;
 
-                Map<String, Class<?>> entityMeta = this.viewEntityDictionary.get(viewEntityClazz);
+                Map<String, Class<?>> entityMeta = this.viewEntityRegistry.getEntityMetaData(viewEntityClazz);
                 Class<?> fieldDataType = entityMeta.get(filter.getField());
 
                 try {
@@ -191,7 +164,13 @@ class DynaQueryNormalizer {
         return orders;
     }
 
-    private void validate(Class<?> viewEntityClazz, DynaQueryRequest dynaQueryRequest) {
+    private void validate(DynaQueryRequest dynaQueryRequest) {
+        String targetView = dynaQueryRequest.getTargetView();
+        if (!this.viewEntityRegistry.isSupported(targetView)) {
+            throw new InvalidViewEntityException(targetView);
+        }
+
+        Class<? extends ViewEntity> viewEntityClazz = this.viewEntityRegistry.getViewEntityClass(targetView);
         this.validateFilterCondition(viewEntityClazz, dynaQueryRequest.getFilterCondition());
         this.validateGroupBy(viewEntityClazz, dynaQueryRequest.getGroup());
         this.validateOrderBys(viewEntityClazz, dynaQueryRequest.getOrders());
@@ -240,7 +219,7 @@ class DynaQueryNormalizer {
         if (operator.equals(AggregateOperator.COUNT)) return;
 
         // Can't do aggregate on field with a data type other than number.
-        if (!this.isNumber(this.viewEntityDictionary.get(viewEntityClazz).get(groupBy.getAggregator().getField()))) {
+        if (!this.isNumber(this.viewEntityRegistry.getEntityMetaData(viewEntityClazz).get(groupBy.getAggregator().getField()))) {
             String message = "Can't do aggregation on field %s with data type other than Number";
             throw new UnsupportedAggregateOperatorException(String.format(message, groupBy.getAggregator().getField()));
         }
@@ -265,20 +244,20 @@ class DynaQueryNormalizer {
         }
     }
 
-    private void validateProjectBys(Class<?> viewEntityClazz, List<DynaQueryRequest.ProjectBy> projectBys) {
-        if (projectBys == null || projectBys.isEmpty()) return;
+    private void validateProjectBys(Class<?> viewEntityClazz, List<DynaQueryRequest.ProjectBy> projectBIES) {
+        if (projectBIES == null || projectBIES.isEmpty()) return;
 
-        for (DynaQueryRequest.ProjectBy project : projectBys) {
+        for (DynaQueryRequest.ProjectBy project : projectBIES) {
             this.validateFieldName(viewEntityClazz, project.getField());
         }
     }
 
     private void validateFieldName(Class<?> viewEntityClazz, String fieldName) {
-        if (!this.viewEntityDictionary.containsKey(viewEntityClazz)) {
-            throw new FailedToFindViewEntityClassException(viewEntityClazz.getSimpleName());
+        if (!this.viewEntityRegistry.isRegistered(viewEntityClazz)) {
+            throw new InvalidViewEntityException(viewEntityClazz.getSimpleName());
         }
 
-        if (!this.viewEntityDictionary.get(viewEntityClazz).containsKey(fieldName)) {
+        if (!this.viewEntityRegistry.getEntityMetaData(viewEntityClazz).containsKey(fieldName)) {
             throw new FailedToFindFieldInViewEntityClassException(viewEntityClazz.getSimpleName(), fieldName);
         }
     }

@@ -15,7 +15,10 @@ import java.util.List;
  * @Author jingwei.zhang on 2023/4/3
  */
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class DynaQueryRequest {
+    private String targetView;
     private List<ProjectBy> projections;
     private FilterCondition filterCondition;
     private GroupBy group;

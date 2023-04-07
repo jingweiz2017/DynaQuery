@@ -38,6 +38,9 @@ public class DynaQuery implements Serializable {
     @Column(name = "name", columnDefinition = "varchar(20)", nullable = false)
     private String name;
 
+    @Column(name = "target_view", columnDefinition = "varchar(32)", nullable = false)
+    private String targetView;
+
     @Column(name = "is_default", columnDefinition = "bool default false", nullable = false)
     private Boolean isDefault;
 
@@ -55,7 +58,7 @@ public class DynaQuery implements Serializable {
 
     @Column(name = "order_by", columnDefinition = "json")
     @Type(type = "json")
-    private List<com.jingweizhang.dynaquery.model.OrderBy> orderBys;
+    private List<OrderBy> orderBys;
 
     public DynaQuery(List<ProjectBy> projectBys, FilterCondition filterCondition, GroupBy groupBy, List<OrderBy> orderBys) {
         this.projectBys = projectBys;

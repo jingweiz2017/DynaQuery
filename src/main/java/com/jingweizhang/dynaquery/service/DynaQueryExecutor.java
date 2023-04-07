@@ -28,36 +28,41 @@ import java.util.stream.Collectors;
  */
 class DynaQueryExecutor {
     private final EntityManager entityManager;
-    public DynaQueryExecutor(EntityManager entityManager) {
+    private final ViewEntityRegistry viewEntityRegistry;
+    public DynaQueryExecutor(EntityManager entityManager, ViewEntityRegistry viewEntityRegistry) {
         this.entityManager = entityManager;
+        this.viewEntityRegistry = viewEntityRegistry;
     }
 
-    private <T extends ViewEntity, R> R doQueryOne(Class<T> entityClazz, Class<R> returnClazz, DynaQuery dynaQuery) {
+    private <R> R doQueryOne(Class<R> returnClazz, DynaQuery dynaQuery) {
+        Class<? extends ViewEntity> entityClazz = this.viewEntityRegistry.getViewEntityClass(dynaQuery.getTargetView());
         CriteriaQuery<R> contentQuery = CriteriaQueryConverter.of(this.entityManager.getCriteriaBuilder(), entityClazz).toContentQuery(dynaQuery, returnClazz);
         TypedQuery<R> query = entityManager.createQuery(contentQuery);
         return query.getSingleResult();
     }
 
-    protected <T extends ViewEntity> Optional<T> queryOneToEntity(Class<T> entityClazz, DynaQuery dynaQuery) {
-        return Optional.of(this.doQueryOne(entityClazz, entityClazz, dynaQuery));
+    protected Optional<?> queryOneToEntity(DynaQuery dynaQuery) {
+        Class<?> entityClazz = this.viewEntityRegistry.getViewEntityClass(dynaQuery.getTargetView());
+        return Optional.of(this.doQueryOne(entityClazz, dynaQuery));
     }
 
-    protected <T extends ViewEntity> Optional<Object[]> queryOneToRaw(Class<T> entityClazz, DynaQuery dynaQuery) {
-        return Optional.of(this.doQueryOne(entityClazz, Object[].class, dynaQuery));
+    protected <T extends ViewEntity> Optional<Object[]> queryOneToRaw(DynaQuery dynaQuery) {
+        return Optional.of(this.doQueryOne(Object[].class, dynaQuery));
     }
 
-    protected <T extends ViewEntity> Optional<Map<String, Object>> queryOneToMap(Class<T> entityClazz, DynaQuery dynaQuery) {
-        return Optional.of(this.toMap(dynaQuery, entityClazz, this.doQueryOne(entityClazz, Object[].class, dynaQuery)));
+    protected <T extends ViewEntity> Optional<Map<String, Object>> queryOneToMap(DynaQuery dynaQuery) {
+        return Optional.of(this.toMap(dynaQuery, this.doQueryOne(Object[].class, dynaQuery)));
     }
 
-    public <T extends ViewEntity> Optional<Map<String, Object>> queryOne(Class<T> entityClazz, DynaQuery dynaQuery) {
+    public Optional<Map<String, Object>> queryOne(DynaQuery dynaQuery) {
         return dynaQuery.getGroupBy() != null ?
-                this.queryOneToMap(entityClazz, dynaQuery) :
-                this.queryOneToEntity(entityClazz, dynaQuery).map(entity -> this.toMap(dynaQuery, entityClazz, entity));
+                this.queryOneToMap(dynaQuery) :
+                this.queryOneToEntity(dynaQuery).map(entity -> this.toMap(dynaQuery, entity));
     }
 
-    private <T extends ViewEntity, R> Page<R> doQueryAll(Class<T> entityClazz, Class<R> resultClazz, DynaQuery dynaQuery, Pageable pageable) {
-        CriteriaQueryConverter<T> criteriaQueryConverter = CriteriaQueryConverter.of(this.entityManager.getCriteriaBuilder(), entityClazz);
+    private <R> Page<R> doQueryAll(Class<R> resultClazz, DynaQuery dynaQuery, Pageable pageable) {
+        Class<? extends ViewEntity> entityClazz = this.viewEntityRegistry.getViewEntityClass(dynaQuery.getTargetView());
+        CriteriaQueryConverter<? extends ViewEntity> criteriaQueryConverter = CriteriaQueryConverter.of(this.entityManager.getCriteriaBuilder(), entityClazz);
 
         CriteriaQuery<R> contentQuery = criteriaQueryConverter.toContentQuery(dynaQuery, resultClazz);
         TypedQuery<R> contentTypeQuery = entityManager.createQuery(contentQuery).setFirstResult((int)pageable.getOffset()).setMaxResults(pageable.getPageSize());
@@ -82,32 +87,33 @@ class DynaQueryExecutor {
     }
 
     // Return a list of entities as of entityClazz in parameter
-    protected <T extends ViewEntity> Page<T> queryAllToEntity(Class<T> entityClazz, DynaQuery dynaQuery, Pageable pageable) {
-        return this.doQueryAll(entityClazz, entityClazz, dynaQuery, pageable);
+    protected Page<?> queryAllToEntity(DynaQuery dynaQuery, Pageable pageable) {
+        Class<? extends ViewEntity> entityClazz = this.viewEntityRegistry.getViewEntityClass(dynaQuery.getTargetView());
+        return this.doQueryAll(entityClazz, dynaQuery, pageable);
     }
 
     // Return a list of raw object[] which requires the client to map each to its the field(column) it belongs to.
-    protected <T extends ViewEntity> Page<Object[]> queryAllToRaw(Class<T> entityClazz, DynaQuery dynaQuery, Pageable pageable) {
-        return this.doQueryAll(entityClazz, Object[].class, dynaQuery, pageable);
+    protected Page<Object[]> queryAllToRaw(DynaQuery dynaQuery, Pageable pageable) {
+        return this.doQueryAll(Object[].class, dynaQuery, pageable);
     }
 
     // Return a list of map which helps to identify field/column each value belongs to.
-    protected <T extends ViewEntity> Page<Map<String, Object>> queryAllToMap(Class<T> entityClazz, DynaQuery dynaQuery, Pageable pageable) {
-        return this.doQueryAll(entityClazz, Object[].class, dynaQuery, pageable).map(content -> this.toMap(dynaQuery, entityClazz, content));
+    protected Page<Map<String, Object>> queryAllToMap(DynaQuery dynaQuery, Pageable pageable) {
+        return this.doQueryAll(Object[].class, dynaQuery, pageable).map(content -> this.toMap(dynaQuery, content));
     }
 
     // queryAll is the entrance of all query with more than one returns.
-    public <T extends ViewEntity> Page<Map<String, Object>> queryAll(Class<T> entityClazz, DynaQuery dynaQuery, Pageable pageable) {
+    public Page<Map<String, Object>> queryAll(DynaQuery dynaQuery, Pageable pageable) {
         return dynaQuery.getGroupBy() != null ?
             // For query with group by, queryAllToMap is the only supported Method.
             // JPA association is not yet supported in this case.
-            this.queryAllToMap(entityClazz, dynaQuery, pageable) :
+            this.queryAllToMap(dynaQuery, pageable) :
             // queryAllToEntity is the default method for queryAll when groupby is not presented.
             // For Entity with JPA association, queryAllToEntity is the only supported Method.
-            this.queryAllToEntity(entityClazz, dynaQuery, pageable).map(entity -> this.toMap(dynaQuery, entityClazz, entity));
+            this.queryAllToEntity(dynaQuery, pageable).map(entity -> this.toMap(dynaQuery, entity));
     }
 
-    private <T, R> Map<String, Object> toMap(DynaQuery dynaQuery, Class<T> entityClazz, R content) {
+    private <R> Map<String, Object> toMap(DynaQuery dynaQuery, R content) {
         List<String> fieldNames = new ArrayList<>();
         //if there is group by, then use group by fields. Projection over group by fields will make result seems wrong.
         if (dynaQuery.getGroupBy() != null) {
@@ -118,6 +124,7 @@ class DynaQueryExecutor {
         } else {
             List<Class<? extends Annotation>> tableAnnotations = Arrays.asList(Column.class, OneToMany.class, ManyToOne.class, OneToOne.class, ManyToMany.class);
 
+            Class<?> entityClazz = this.viewEntityRegistry.getViewEntityClass(dynaQuery.getTargetView());
             for (Field field : entityClazz.getDeclaredFields()) {
                 if (!Modifier.isStatic(field.getModifiers()) && !Modifier.isTransient(field.getModifiers()) &&
                         tableAnnotations.stream().anyMatch(field::isAnnotationPresent)) {
@@ -168,6 +175,10 @@ class DynaQueryExecutor {
         }
 
         public static <E> CriteriaQueryConverter<E> of(CriteriaBuilder criteriaBuilder, Class<E> entityClazz) {
+            if (entityClazz == null) {
+                throw new IllegalArgumentException("entityClazz must not be null");
+            }
+
             return new CriteriaQueryConverter<>(criteriaBuilder, entityClazz);
         }
 

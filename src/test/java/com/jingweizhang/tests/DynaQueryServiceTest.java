@@ -97,6 +97,7 @@ public class DynaQueryServiceTest {
     @Test
     public void testFilterAndConditions() {
         DynaQueryRequest queryRequest = new DynaQueryRequest();
+        queryRequest.setTargetView("Order");
         queryRequest.setFilterCondition(
                 new DynaQueryRequest.UnaryFilterCondition(
                         Arrays.asList(
@@ -114,7 +115,7 @@ public class DynaQueryServiceTest {
                 )
         );
 
-        Page<Map<String, Object>> result = variantQueryService.queryAll(Order.class, queryRequest, PageRequest.of(pageNum, pageSize), (x) -> x);
+        Page<Map<String, Object>> result = variantQueryService.queryAll(queryRequest, PageRequest.of(pageNum, pageSize), (x) -> x);
 
         Assertions.assertEquals(1, result.getTotalElements());
         Assertions.assertTrue(result.getContent().get(0).get("amount").equals(6.5) && result.getContent().get(0).get("customerName").equals("customer"));
@@ -123,6 +124,7 @@ public class DynaQueryServiceTest {
     @Test
     public void testFilterOrConditions() {
         DynaQueryRequest queryRequest = new DynaQueryRequest();
+        queryRequest.setTargetView("Order");
         queryRequest.setFilterCondition(
                 new DynaQueryRequest.BinaryFilterCondition(
                         new DynaQueryRequest.UnaryFilterCondition(
@@ -147,7 +149,7 @@ public class DynaQueryServiceTest {
                 )
         );
 
-        Page<Map<String, Object>> result = this.variantQueryService.queryAll(Order.class, queryRequest, PageRequest.of(pageNum, pageSize), (x) -> x);
+        Page<Map<String, Object>> result = this.variantQueryService.queryAll(queryRequest, PageRequest.of(pageNum, pageSize), (x) -> x);
 
         Assertions.assertEquals(2, result.getTotalElements());
         Assertions.assertFalse(result.getContent().stream().anyMatch(x -> !x.get("customerName").equals("customer") && !x.get("customerName").equals("customer1")));
@@ -157,6 +159,7 @@ public class DynaQueryServiceTest {
     public void testOrderBy() throws Exception {
         String columnName = "amount";
         DynaQueryRequest queryRequest = new DynaQueryRequest();
+        queryRequest.setTargetView("Order");
         queryRequest.setOrders(
             Arrays.asList(
                 new DynaQueryRequest.OrderBy(
@@ -167,15 +170,16 @@ public class DynaQueryServiceTest {
             )
         );
 
-        Page<Map<String, Object>> result = variantQueryService.queryAll(Order.class, queryRequest, PageRequest.of(pageNum, pageSize), (x) -> x);
+        Page<Map<String, Object>> result = variantQueryService.queryAll(queryRequest, PageRequest.of(pageNum, pageSize), (x) -> x);
 
         List<Map<String, Object>> sorted = result.getContent().stream().sorted(Comparator.comparing(x -> (Double)x.get(columnName))).collect(Collectors.toList());
         Assertions.assertArrayEquals(sorted.toArray(), result.getContent().toArray());
     }
 
     @Test
-    public void testGroupBy() throws Exception {
+    public void testGroupBy() {
         DynaQueryRequest queryRequest = new DynaQueryRequest();
+        queryRequest.setTargetView("Order");
         queryRequest.setGroup(
                 new DynaQueryRequest.GroupBy(
                         new ArrayList<>(
@@ -191,7 +195,7 @@ public class DynaQueryServiceTest {
                         "totalSum"
                 )
         );
-        Page<Map<String, Object>> result = this.variantQueryService.queryAll(Order.class, queryRequest, PageRequest.of(pageNum, pageSize), (x) -> x);
+        Page<Map<String, Object>> result = this.variantQueryService.queryAll(queryRequest, PageRequest.of(pageNum, pageSize), (x) -> x);
 
         Assertions.assertEquals(33.6, (Double) result.getContent().get(0).get("totalSum"));
     }
@@ -199,6 +203,7 @@ public class DynaQueryServiceTest {
     @Test
     public void testGroupByWithHaving() throws Exception {
         DynaQueryRequest queryRequest = new DynaQueryRequest();
+        queryRequest.setTargetView("Order");
         queryRequest.setGroup(
                 new DynaQueryRequest.GroupBy(
                         new ArrayList<>(
@@ -224,7 +229,7 @@ public class DynaQueryServiceTest {
         );
 
         Page<Map<String, Object>> result =
-                this.variantQueryService.queryAll(Order.class, queryRequest, PageRequest.of(pageNum, pageSize), (x) -> x);
+                this.variantQueryService.queryAll(queryRequest, PageRequest.of(pageNum, pageSize), (x) -> x);
 
         Assertions.assertEquals(1, result.getTotalElements());
         Assertions.assertEquals(33.6, (Double) result.getContent().get(0).get("totalSum"));
