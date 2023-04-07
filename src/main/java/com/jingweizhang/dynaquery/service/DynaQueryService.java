@@ -78,7 +78,7 @@ public class DynaQueryService {
         return DynaQueryReference.of(dynaQuery);
     }
 
-    public List<DynaQueryReference> listVariantQueryReferences() {
+    public List<DynaQueryReference> listDynaQueryReferences() {
         return this.dynaQueryRepository.findAll().stream().map(DynaQueryReference::of).collect(Collectors.toList());
     }
 }

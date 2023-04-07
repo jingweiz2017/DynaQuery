@@ -10,7 +10,7 @@ import java.util.List;
 
 /**
  * @Description
- * VariantQueryRequest is used by the client to define a query at runtime.
+ * DynaQueryRequest is used by the client to define a query at runtime.
  *
  * @Author jingwei.zhang on 2023/4/3
  */

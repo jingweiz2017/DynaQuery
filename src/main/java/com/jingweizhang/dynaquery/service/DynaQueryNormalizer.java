@@ -85,7 +85,20 @@ class DynaQueryNormalizer {
         return projectBys.stream().map((x) -> ProjectBy.of(x.getField(), x.isVisible())).collect(Collectors.toList());
     }
 
-    private FilterCondition normalizeFilterCondition(Class<?> viewEntityClazz, DynaQueryRequest.FilterCondition sourceFilterCondition) {
+    /**
+     * Validate the sourceFilterCondition of query request
+     * @param viewEntityClazz
+     *          view entity to validate against
+     * @param sourceFilterCondition
+     *          sourceFilterCondition to validate
+     * @param syntheticFields
+     *          synthetic fields are fields created by query itself rather than a field existed in view entity.
+     *          Thus, there is no need to validate them.
+     *          e.g. select sum(amount) as totalSum from order where id > 5.
+     *          The field totalSum is a synthetic field created by query itself.
+     * @return FilterCondition
+     */
+    private FilterCondition normalizeFilterCondition(Class<?> viewEntityClazz, DynaQueryRequest.FilterCondition sourceFilterCondition, List<String> syntheticFields) {
         if (sourceFilterCondition == null) return null;
 
         FilterCondition filterCondition;
@@ -95,6 +108,8 @@ class DynaQueryNormalizer {
             List<FilterBy> filters = new ArrayList<>();
 
             for (DynaQueryRequest.FilterBy filter : unaryFilterCondition.getFilters()) {
+                if (syntheticFields.contains(filter.getField())) continue;
+
                 Map<String, Class<?>> entityMeta = this.viewEntityDictionary.get(viewEntityClazz);
                 Class<?> fieldDataType = entityMeta.get(filter.getField());
 
@@ -110,8 +125,8 @@ class DynaQueryNormalizer {
             filterCondition = new UnaryFilterCondition(filters);
         } else {
             DynaQueryRequest.BinaryFilterCondition binaryFilterCondition = (DynaQueryRequest.BinaryFilterCondition)sourceFilterCondition;
-            FilterCondition left = this.normalizeFilterCondition(viewEntityClazz, binaryFilterCondition.getLeft());
-            FilterCondition right = this.normalizeFilterCondition(viewEntityClazz, binaryFilterCondition.getRight());
+            FilterCondition left = this.normalizeFilterCondition(viewEntityClazz, binaryFilterCondition.getLeft(), syntheticFields);
+            FilterCondition right = this.normalizeFilterCondition(viewEntityClazz, binaryFilterCondition.getRight(), syntheticFields);
 
             filterCondition = BinaryFilterCondition.of(left, FilterConditionConnector.valueOf(binaryFilterCondition.getConnector()),right);
         }
@@ -119,6 +134,9 @@ class DynaQueryNormalizer {
         return filterCondition;
     }
 
+    private FilterCondition normalizeFilterCondition(Class<?> viewEntityClazz, DynaQueryRequest.FilterCondition sourceFilterCondition) {
+        return this.normalizeFilterCondition(viewEntityClazz, sourceFilterCondition, Collections.emptyList());
+    }
 
     private Object convert(Class<?> clazz, String value) {
         if (value == null) return null;
@@ -150,12 +168,15 @@ class DynaQueryNormalizer {
 
     private GroupBy normalizeGroupBy(Class<?> viewEntityClazz, DynaQueryRequest.GroupBy groupBy) {
         return groupBy == null ? null :
-                GroupBy.of(groupBy.getFields(),
+                GroupBy.of(
+                        groupBy.getFields(),
                         Aggregator.of(
                                 groupBy.getAggregator().getField(),
                                 AggregateOperator.valueOf(groupBy.getAggregator().getOperator())
                         ),
-                        this.normalizeFilterCondition(viewEntityClazz, groupBy.getHaving()));
+                        this.normalizeFilterCondition(viewEntityClazz, groupBy.getHaving(), Collections.singletonList(groupBy.getAlias())),
+                        groupBy.getAlias()
+                );
     }
 
     private List<OrderBy> normalizeOrderBy(Class<?> viewEntityClazz, List<DynaQueryRequest.OrderBy> orderBys) {
@@ -212,13 +233,22 @@ class DynaQueryNormalizer {
             throw new UnsupportedAggregateOperatorException(String.format(message, groupBy.getAggregator().getOperator(), groupBy.getAggregator().getField()));
         }
 
+        if (groupBy.getAlias() == null || groupBy.getAlias().isEmpty()) {
+            throw new InvalidFieldAliasException(groupBy.getAggregator().getField());
+        }
+
         if (operator.equals(AggregateOperator.COUNT)) return;
 
         // Can't do aggregate on field with a data type other than number.
-        if (!Number.class.isAssignableFrom(this.viewEntityDictionary.get(viewEntityClazz).get(groupBy.getAggregator().getField()))) {
+        if (!this.isNumber(this.viewEntityDictionary.get(viewEntityClazz).get(groupBy.getAggregator().getField()))) {
             String message = "Can't do aggregation on field %s with data type other than Number";
             throw new UnsupportedAggregateOperatorException(String.format(message, groupBy.getAggregator().getField()));
         }
+    }
+
+    private boolean isNumber(Class<?> clazz) {
+        List<Class<?>> numericTypes = Arrays.asList(byte.class, short.class, int.class, long.class, float.class, double.class);
+        return Number.class.isAssignableFrom(clazz) || numericTypes.contains(clazz);
     }
 
     private void validateOrderBys(Class<?> viewEntityClazz, List<DynaQueryRequest.OrderBy> orderBys) {

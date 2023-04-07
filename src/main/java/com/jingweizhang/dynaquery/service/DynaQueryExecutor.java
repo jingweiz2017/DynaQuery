@@ -112,11 +112,7 @@ class DynaQueryExecutor {
         //if there is group by, then use group by fields. Projection over group by fields will make result seems wrong.
         if (dynaQuery.getGroupBy() != null) {
             fieldNames = dynaQuery.getGroupBy().getFields();
-            if (dynaQuery.getGroupBy().getAlias() != null) {
-                fieldNames.add(dynaQuery.getGroupBy().getAlias());
-            } else {
-                fieldNames.add(dynaQuery.getGroupBy().getAggregator().getOperator().name().toLowerCase() + "@" + dynaQuery.getGroupBy().getAggregator().getField());
-            }
+            fieldNames.add(dynaQuery.getGroupBy().getAlias());
         } else if (dynaQuery.getProjectBys() != null && !dynaQuery.getProjectBys().isEmpty()) {
             fieldNames = dynaQuery.getProjectBys().stream().map(ProjectBy::getField).collect(Collectors.toList());
         } else {
@@ -158,7 +154,7 @@ class DynaQueryExecutor {
 
     /**
      * @Description
-     * CriteriaQueryConverter takes a VariantQuery and convert it to CriteriaQuery for execution
+     * CriteriaQueryConverter takes a DynaQuery and convert it to CriteriaQuery for execution
      *
      * @Author rocky.zhang on 2023/3/14
      */
@@ -394,22 +390,21 @@ class DynaQueryExecutor {
             if (groupBy != null) {
                 Selection<?> selection;
                 Path<Number> fieldPath = root.get(groupBy.getAggregator().getField());
-                String aliasPrefix = groupBy.getAggregator().getField();
                 switch (groupBy.getAggregator().getOperator()) {
                     case SUM:
-                        selection = criteriaBuilder.sum(fieldPath).alias(groupBy.getAlias() != null ? groupBy.getAlias() : aliasPrefix + "@sum");
+                        selection = criteriaBuilder.sum(fieldPath).alias(groupBy.getAlias());
                         break;
                     case AVG:
-                        selection = criteriaBuilder.avg(fieldPath).alias(groupBy.getAlias() != null ? groupBy.getAlias() : aliasPrefix + "@avg");
+                        selection = criteriaBuilder.avg(fieldPath).alias(groupBy.getAlias());
                         break;
                     case MAX:
-                        selection = criteriaBuilder.max(fieldPath).alias(groupBy.getAlias() != null ? groupBy.getAlias() : aliasPrefix + "@max");
+                        selection = criteriaBuilder.max(fieldPath).alias(groupBy.getAlias());
                         break;
                     case MIN:
-                        selection = criteriaBuilder.min(fieldPath).alias(groupBy.getAlias() != null ? groupBy.getAlias() : aliasPrefix + "@min");
+                        selection = criteriaBuilder.min(fieldPath).alias(groupBy.getAlias());
                         break;
                     case COUNT:
-                        selection = criteriaBuilder.count(fieldPath).alias(groupBy.getAlias() != null ? groupBy.getAlias() : aliasPrefix + "@count");
+                        selection = criteriaBuilder.count(fieldPath).alias(groupBy.getAlias());
                         break;
                     default:
                         return;
