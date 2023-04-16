@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
  * @Description
  * User to validate the query and convert parameters for its data type
  *
- * @Author jingwei.zhang on 2023/4/3
+ * @Author rocky.zhang on 2023/4/3
  */
 class DynaQueryNormalizer {
     private final ViewEntityRegistry viewEntityRegistry;
@@ -31,7 +31,7 @@ class DynaQueryNormalizer {
         DynaQuery query = new DynaQuery();
         query.setTargetView(this.normalizeTargetView(dynaQueryRequest.getTargetView()));
         query.setProjectBys(this.normalizeProjectBy(viewEntityClazz, dynaQueryRequest.getProjections()));
-        query.setFilterCondition(this.normalizeFilterCondition(viewEntityClazz, dynaQueryRequest.getFilterCondition()));
+        query.setFilter(this.normalizeFilter(viewEntityClazz, dynaQueryRequest.getFilter()));
         query.setGroupBy(this.normalizeGroupBy(viewEntityClazz, dynaQueryRequest.getGroup()));
         query.setOrderBys(this.normalizeOrderBy(viewEntityClazz, dynaQueryRequest.getOrders()));
 
@@ -62,7 +62,7 @@ class DynaQueryNormalizer {
      * Validate the sourceFilterCondition of query request
      * @param viewEntityClazz
      *          view entity to validate against
-     * @param sourceFilterCondition
+     * @param sourceFilter
      *          sourceFilterCondition to validate
      * @param syntheticFields
      *          synthetic fields are fields created by query itself rather than a field existed in view entity.
@@ -71,44 +71,58 @@ class DynaQueryNormalizer {
      *          The field totalSum is a synthetic field created by query itself.
      * @return FilterCondition
      */
-    private FilterCondition normalizeFilterCondition(Class<?> viewEntityClazz, DynaQueryRequest.FilterCondition sourceFilterCondition, List<String> syntheticFields) {
-        if (sourceFilterCondition == null) return null;
+    private Filter normalizeFilter(Class<?> viewEntityClazz, DynaQueryRequest.Filter sourceFilter, List<String> syntheticFields) {
+        if (sourceFilter == null) return null;
 
-        FilterCondition filterCondition;
-        if (sourceFilterCondition instanceof DynaQueryRequest.UnaryFilterCondition) {
-            DynaQueryRequest.UnaryFilterCondition unaryFilterCondition = (DynaQueryRequest.UnaryFilterCondition)sourceFilterCondition;
+        if (sourceFilter instanceof DynaQueryRequest.CompositeFilter) {
+            DynaQueryRequest.CompositeFilter compositeFilter = (DynaQueryRequest.CompositeFilter) sourceFilter;
 
-            List<FilterBy> filters = new ArrayList<>();
+            List<Filter> filters = new ArrayList<>();
+            for (DynaQueryRequest.Filter filter : compositeFilter.getFilters()) {
+                //There is no need to process those synthetic fields for its type
+                if (filter instanceof DynaQueryRequest.SimpleFilter &&
+                        syntheticFields.contains(((DynaQueryRequest.SimpleFilter)filter).getField()))
+                    continue;
 
-            for (DynaQueryRequest.FilterBy filter : unaryFilterCondition.getFilters()) {
-                if (syntheticFields.contains(filter.getField())) continue;
+                filters.add(this.normalizeFilter(viewEntityClazz, filter, syntheticFields));
+            }
 
+            return CompositeFilter.of(filters, compositeFilter.getConnector());
+        } else if (sourceFilter instanceof DynaQueryRequest.SimpleFilter) {
+            DynaQueryRequest.SimpleFilter simpleFilter = (DynaQueryRequest.SimpleFilter) sourceFilter;
+
+            List<Object> values;
+            if (syntheticFields.contains(simpleFilter.getField())) {
+                values = new ArrayList<>(simpleFilter.getValues());
+            }
+            else {
                 Map<String, Class<?>> entityMeta = this.viewEntityRegistry.getEntityMetaData(viewEntityClazz);
-                Class<?> fieldDataType = entityMeta.get(filter.getField());
-
+                Class<?> fieldDataType = entityMeta.get(simpleFilter.getField());
                 try {
-                    List<Object> values = filter.getValues().stream().map(x -> this.convert(fieldDataType, x)).collect(Collectors.toList());
-                    FilterBy filterBy = FilterBy.of(filter.getField(), FilterOperator.valueOf(filter.getOperator()), values);
-                    filters.add(filterBy);
+                    values = simpleFilter.getValues().stream().map(x -> this.convert(fieldDataType, x)).collect(Collectors.toList());
                 } catch (Exception ex) {
-                    throw new FailedToConvertFilterValuesToFieldDataTypeException(filter.getField(), fieldDataType.getName());
+                    throw new FailedToConvertFilterValuesToFieldDataTypeException(simpleFilter.getField(), fieldDataType.getName());
                 }
             }
 
-            filterCondition = new UnaryFilterCondition(filters);
+            return SimpleFilter.of(simpleFilter.getField(), FilterOperator.valueOf(simpleFilter.getOperator()), values);
+        } else if (sourceFilter instanceof DynaQueryRequest.GroupBy.AggregatorFilter) {
+            // AggregatorFilter is a special filter type that is only used in group by clause
+            // There is no need to validate its field type as it is a synthetic field
+            // We only need to convert its value to be a number type that fits all.
+            DynaQueryRequest.GroupBy.AggregatorFilter aggregatorFilter = (DynaQueryRequest.GroupBy.AggregatorFilter) sourceFilter;
+
+            return AggregatorFilter.of(
+                    Aggregator.of(aggregatorFilter.getAggregator().getField(), AggregateOperator.valueOf(aggregatorFilter.getAggregator().getOperator())),
+                    FilterOperator.valueOf(aggregatorFilter.getOperator()),
+                    aggregatorFilter.getValues().stream().map(x -> this.convert(Long.class, x)).collect(Collectors.toList()));
         } else {
-            DynaQueryRequest.BinaryFilterCondition binaryFilterCondition = (DynaQueryRequest.BinaryFilterCondition)sourceFilterCondition;
-            FilterCondition left = this.normalizeFilterCondition(viewEntityClazz, binaryFilterCondition.getLeft(), syntheticFields);
-            FilterCondition right = this.normalizeFilterCondition(viewEntityClazz, binaryFilterCondition.getRight(), syntheticFields);
-
-            filterCondition = BinaryFilterCondition.of(left, FilterConditionConnector.valueOf(binaryFilterCondition.getConnector()),right);
+            throw new InvalidFilterException("Invalid filter type");
         }
-
-        return filterCondition;
     }
 
-    private FilterCondition normalizeFilterCondition(Class<?> viewEntityClazz, DynaQueryRequest.FilterCondition sourceFilterCondition) {
-        return this.normalizeFilterCondition(viewEntityClazz, sourceFilterCondition, Collections.emptyList());
+    private Filter normalizeFilter(Class<?> viewEntityClazz, DynaQueryRequest.Filter sourceFilter) {
+        return this.normalizeFilter(viewEntityClazz, sourceFilter, Collections.emptyList());
     }
 
     private Object convert(Class<?> clazz, String value) {
@@ -141,15 +155,15 @@ class DynaQueryNormalizer {
 
     private GroupBy normalizeGroupBy(Class<?> viewEntityClazz, DynaQueryRequest.GroupBy groupBy) {
         return groupBy == null ? null :
-                GroupBy.of(
-                        groupBy.getFields(),
-                        Aggregator.of(
-                                groupBy.getAggregator().getField(),
-                                AggregateOperator.valueOf(groupBy.getAggregator().getOperator())
-                        ),
-                        this.normalizeFilterCondition(viewEntityClazz, groupBy.getHaving(), Collections.singletonList(groupBy.getAlias())),
-                        groupBy.getAlias()
-                );
+            GroupBy.of(
+                groupBy.getFields(),
+                Aggregator.of(
+                        groupBy.getAggregator().getField(),
+                        AggregateOperator.valueOf(groupBy.getAggregator().getOperator())
+                ),
+                this.normalizeFilter(viewEntityClazz, groupBy.getHaving(), Collections.singletonList(groupBy.getAlias())),
+                groupBy.getAlias()
+            );
     }
 
     private List<OrderBy> normalizeOrderBy(Class<?> viewEntityClazz, List<DynaQueryRequest.OrderBy> orderBys) {
@@ -171,31 +185,30 @@ class DynaQueryNormalizer {
         }
 
         Class<? extends ViewEntity> viewEntityClazz = this.viewEntityRegistry.getViewEntityClass(targetView);
-        this.validateFilterCondition(viewEntityClazz, dynaQueryRequest.getFilterCondition());
+        this.validateFilter(viewEntityClazz, dynaQueryRequest.getFilter());
         this.validateGroupBy(viewEntityClazz, dynaQueryRequest.getGroup());
         this.validateOrderBys(viewEntityClazz, dynaQueryRequest.getOrders());
         this.validateProjectBys(viewEntityClazz, dynaQueryRequest.getProjections());
     }
 
-    private void validateFilterCondition(Class<?> viewEntityClazz, DynaQueryRequest.FilterCondition filterCondition) {
-        if (filterCondition == null) return;
+    private void validateFilter(Class<?> viewEntityClazz, DynaQueryRequest.Filter sourcefilter) {
+        if (sourcefilter == null) return;
 
-        if (filterCondition instanceof DynaQueryRequest.UnaryFilterCondition) {
-            for (DynaQueryRequest.FilterBy filter : ((DynaQueryRequest.UnaryFilterCondition) filterCondition).getFilters()) {
-                this.validateFieldName(viewEntityClazz, filter.getField());
-
-                try {
-                    FilterOperator.valueOf(filter.getOperator());
-                } catch (IllegalArgumentException ex) {
-                    throw new UnsupportedFilterOperatorException(filter.getField(), filter.getOperator());
-                }
+        if (sourcefilter instanceof DynaQueryRequest.CompositeFilter) {
+            for (DynaQueryRequest.Filter filter : ((DynaQueryRequest.CompositeFilter) sourcefilter).getFilters()) {
+                this.validateFilter(viewEntityClazz, filter);
             }
         } else {
-            DynaQueryRequest.FilterCondition left = ((DynaQueryRequest.BinaryFilterCondition)filterCondition).getLeft();
-            this.validateFilterCondition(viewEntityClazz, left);
+            DynaQueryRequest.SimpleFilter simpleFilter = (DynaQueryRequest.SimpleFilter)sourcefilter;
+            this.validateFieldName(viewEntityClazz, simpleFilter.getField());
 
-            DynaQueryRequest.FilterCondition right = ((DynaQueryRequest.BinaryFilterCondition)filterCondition).getRight();
-            this.validateFilterCondition(viewEntityClazz, right);
+            try {
+                FilterOperator.valueOf(simpleFilter.getOperator());
+            } catch (IllegalArgumentException ex) {
+                throw new UnsupportedFilterOperatorException(simpleFilter.getField(), simpleFilter.getOperator());
+            }
+
+            //TODO: Validate allowed Operator for different data type. e.g. LT, GT are only allowed on numbers.
         }
     }
 

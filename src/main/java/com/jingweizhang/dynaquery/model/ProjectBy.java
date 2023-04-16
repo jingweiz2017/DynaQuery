@@ -9,7 +9,7 @@ import java.io.Serializable;
  * @Description
  * Entity that maps to Column_Object table
  *
- * @Author jingwei.zhang on 2023/4/3
+ * @Author rocky.zhang on 2023/4/3
  */
 @Data
 @NoArgsConstructor

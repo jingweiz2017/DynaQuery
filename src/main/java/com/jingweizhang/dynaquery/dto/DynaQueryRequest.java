@@ -2,6 +2,7 @@ package com.jingweizhang.dynaquery.dto;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.jingweizhang.dynaquery.model.FilterConnector;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,7 +13,7 @@ import java.util.List;
  * @Description
  * DynaQueryRequest is used by the client to define a query at runtime.
  *
- * @Author jingwei.zhang on 2023/4/3
+ * @Author rocky.zhang on 2023/4/3
  */
 @Data
 @NoArgsConstructor
@@ -20,7 +21,7 @@ import java.util.List;
 public class DynaQueryRequest {
     private String targetView;
     private List<ProjectBy> projections;
-    private FilterCondition filterCondition;
+    private Filter filter;
     private GroupBy group;
     private List<OrderBy> orders;
 
@@ -33,29 +34,21 @@ public class DynaQueryRequest {
     }
 
     @JsonTypeInfo(use = JsonTypeInfo.Id.DEDUCTION)
-    @JsonSubTypes({ @JsonSubTypes.Type(UnaryFilterCondition.class), @JsonSubTypes.Type(BinaryFilterCondition.class) })
-    public interface FilterCondition {}
+    @JsonSubTypes({ @JsonSubTypes.Type(CompositeFilter.class), @JsonSubTypes.Type(SimpleFilter.class) })
+    public interface Filter {}
 
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class BinaryFilterCondition implements FilterCondition {
-        private FilterCondition left;
-        private String connector;
-        private FilterCondition right;
+    public static class CompositeFilter implements Filter {
+        private List<Filter> filters;
+        private FilterConnector connector;
     }
 
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class UnaryFilterCondition implements FilterCondition {
-        private List<FilterBy> filters;
-    }
-
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class FilterBy {
+    public static class SimpleFilter implements Filter {
         private String field;
         private String operator;
         private List<String> values;
@@ -67,8 +60,17 @@ public class DynaQueryRequest {
     public static class GroupBy {
         private List<String> fields;
         private Aggregator aggregator;
-        private FilterCondition having;
+        private Filter having;
         private String alias;
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public static class AggregatorFilter implements Filter {
+            private Aggregator aggregator;
+            private String operator;
+            private List<String> values;
+        }
 
         @Data
         @NoArgsConstructor

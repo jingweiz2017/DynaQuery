@@ -5,7 +5,7 @@ package com.jingweizhang.dynaquery.model;
  * Operator that connect a column with its value.
  * Used in Filter.
  *
- * @Author jingwei.zhang on 2023/4/3
+ * @Author rocky.zhang on 2023/4/3
  */
 public enum FilterOperator {
     EQ("="),

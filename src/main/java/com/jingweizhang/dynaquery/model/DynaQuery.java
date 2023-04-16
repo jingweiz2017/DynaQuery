@@ -18,7 +18,7 @@ import java.util.List;
  * Entity that maps to Variant_Object table
  * And it is THE query itself for an on the fly request if no persistent needed.
  *
- * @Author jingwei.zhang on 2023/4/3
+ * @Author rocky.zhang on 2023/4/3
  */
 @Data
 @NoArgsConstructor
@@ -50,7 +50,7 @@ public class DynaQuery implements Serializable {
 
     @Column(name = "filter_condition", columnDefinition = "json")
     @Type(type = "json")
-    private FilterCondition filterCondition;
+    private Filter filter;
 
     @Column(name = "group_by", columnDefinition = "json")
     @Type(type = "json")
@@ -60,9 +60,9 @@ public class DynaQuery implements Serializable {
     @Type(type = "json")
     private List<OrderBy> orderBys;
 
-    public DynaQuery(List<ProjectBy> projectBys, FilterCondition filterCondition, GroupBy groupBy, List<OrderBy> orderBys) {
+    public DynaQuery(List<ProjectBy> projectBys, Filter filter, GroupBy groupBy, List<OrderBy> orderBys) {
         this.projectBys = projectBys;
-        this.filterCondition = filterCondition;
+        this.filter = filter;
         this.groupBy = groupBy;
         this.orderBys = orderBys;
     }

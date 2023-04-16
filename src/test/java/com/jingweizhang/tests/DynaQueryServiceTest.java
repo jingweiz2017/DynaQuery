@@ -1,6 +1,7 @@
 package com.jingweizhang.tests;
 
 import com.jingweizhang.dynaquery.dto.DynaQueryRequest;
+import com.jingweizhang.dynaquery.model.FilterConnector;
 import com.jingweizhang.dynaquery.service.DynaQueryService;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -98,20 +99,21 @@ public class DynaQueryServiceTest {
     public void testFilterAndConditions() {
         DynaQueryRequest queryRequest = new DynaQueryRequest();
         queryRequest.setTargetView("Order");
-        queryRequest.setFilterCondition(
-                new DynaQueryRequest.UnaryFilterCondition(
+        queryRequest.setFilter(
+                new DynaQueryRequest.CompositeFilter(
                         Arrays.asList(
-                                new DynaQueryRequest.FilterBy(
+                                new DynaQueryRequest.SimpleFilter(
                                         "amount",
                                         "EQ",
                                         Collections.singletonList("6.5")
                                 ),
-                                new DynaQueryRequest.FilterBy(
+                                new DynaQueryRequest.SimpleFilter(
                                         "customerName",
                                         "EQ",
                                         Collections.singletonList("customer")
                                 )
-                        )
+                        ),
+                        FilterConnector.AND
                 )
         );
 
@@ -125,27 +127,21 @@ public class DynaQueryServiceTest {
     public void testFilterOrConditions() {
         DynaQueryRequest queryRequest = new DynaQueryRequest();
         queryRequest.setTargetView("Order");
-        queryRequest.setFilterCondition(
-                new DynaQueryRequest.BinaryFilterCondition(
-                        new DynaQueryRequest.UnaryFilterCondition(
-                                Collections.singletonList(
-                                        new DynaQueryRequest.FilterBy(
-                                                "customerName",
-                                                "EQ",
-                                                Collections.singletonList("customer")
-                                        )
+        queryRequest.setFilter(
+                new DynaQueryRequest.CompositeFilter(
+                        Arrays.asList(
+                                new DynaQueryRequest.SimpleFilter(
+                                        "customerName",
+                                        "EQ",
+                                        Collections.singletonList("customer")
+                                ),
+                                new DynaQueryRequest.SimpleFilter(
+                                        "customerName",
+                                        "EQ",
+                                        Collections.singletonList("customer1")
                                 )
                         ),
-                        "OR",
-                        new DynaQueryRequest.UnaryFilterCondition(
-                                Collections.singletonList(
-                                        new DynaQueryRequest.FilterBy(
-                                                "customerName",
-                                                "EQ",
-                                                Collections.singletonList("customer1")
-                                        )
-                                )
-                        )
+                        FilterConnector.OR
                 )
         );
 
@@ -201,28 +197,21 @@ public class DynaQueryServiceTest {
     }
 
     @Test
-    public void testGroupByWithHaving() throws Exception {
+    public void testGroupByWithHaving() {
+        DynaQueryRequest.GroupBy.Aggregator aggregator = new DynaQueryRequest.GroupBy.Aggregator(
+                "amount",
+                "SUM"
+        );
         DynaQueryRequest queryRequest = new DynaQueryRequest();
         queryRequest.setTargetView("Order");
         queryRequest.setGroup(
                 new DynaQueryRequest.GroupBy(
-                        new ArrayList<>(
-                                Arrays.asList(
-                                        "shippingAddress"
-                                )
-                        ),
-                        new DynaQueryRequest.GroupBy.Aggregator(
-                                "amount",
-                                "SUM"
-                        ),
-                        new DynaQueryRequest.UnaryFilterCondition(
-                                Arrays.asList(
-                                        new DynaQueryRequest.FilterBy(
-                                                "totalSum",
-                                                "GT",
-                                                Collections.singletonList("30")
-                                        )
-                                )
+                        new ArrayList<>(List.of("shippingAddress")),
+                        aggregator,
+                        new DynaQueryRequest.GroupBy.AggregatorFilter(
+                            aggregator,
+                            "GT",
+                            Collections.singletonList("30")
                         ),
                         "totalSum"
                 )

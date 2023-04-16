@@ -8,7 +8,7 @@ import org.springframework.stereotype.Repository;
  * @Description
  * Access Variant Query entity in database
  *
- * @Author jingwei.zhang on 2023/4/3
+ * @Author rocky.zhang on 2023/4/3
  */
 @Repository
 public interface DynaQueryRepository extends JpaRepository<DynaQuery, Integer> {

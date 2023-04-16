@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  * @Description
  * It will be responsible for executing DynaQuery with Criteria API.
  *
- * @Author jingwei.zhang on 2023/4/3
+ * @Author rocky.zhang on 2023/4/3
  */
 class DynaQueryExecutor {
     private final EntityManager entityManager;
@@ -185,7 +185,7 @@ class DynaQueryExecutor {
         public <R> CriteriaQuery<R> toContentQuery(DynaQuery dynaQuery, Class<R> resultClazz) {
             CriteriaQuery<R> criteriaQuery = this.initialQuery(resultClazz);
 
-            this.filterBy(dynaQuery.getFilterCondition(), criteriaQuery);
+            this.filterBy(dynaQuery.getFilter(), criteriaQuery);
             this.groupBy(dynaQuery.getGroupBy(), criteriaQuery);
             this.orderBy(dynaQuery.getOrderBys(), criteriaQuery);
             this.projectBy(dynaQuery.getProjectBys(), criteriaQuery);
@@ -196,7 +196,7 @@ class DynaQueryExecutor {
         public CriteriaQuery<Long> toCountQuery(DynaQuery dynaQuery) {
             CriteriaQuery<Long> criteriaQuery = this.initialQuery(Long.class);
 
-            this.filterBy(dynaQuery.getFilterCondition(), criteriaQuery);
+            this.filterBy(dynaQuery.getFilter(), criteriaQuery);
             this.groupBy(dynaQuery.getGroupBy(), criteriaQuery);
             this.countBy(dynaQuery.getProjectBys(), criteriaQuery);
 
@@ -259,91 +259,130 @@ class DynaQueryExecutor {
             criteriaQuery.multiselect(projections);
         }
 
-        private <R> void filterBy(FilterCondition filterCondition, CriteriaQuery<R> criteriaQuery) {
-            if (filterCondition != null) {
-                Predicate predicate = this.doFilterCondition(filterCondition);
+        private <R> void filterBy(Filter filter, CriteriaQuery<R> criteriaQuery) {
+            if (filter != null) {
+                Predicate predicate = this.doFilter(filter);
                 criteriaQuery.where(predicate);
             }
         }
 
-        private Predicate doFilterCondition(FilterCondition filterCondition) {
+        private Predicate doFilter(Filter filter) {
             Predicate predicate;
-            if (filterCondition instanceof UnaryFilterCondition) {
-                predicate = this.unaryFilterCondition((UnaryFilterCondition)filterCondition);
+            if (filter instanceof SimpleFilter) {
+                predicate = this.doSimpleFilter((SimpleFilter) filter);
+            } else if (filter instanceof CompositeFilter) {
+                predicate = this.doCompositeFilter((CompositeFilter) filter);
+            } else if (filter instanceof AggregatorFilter) {
+                predicate = this.doAggregatorFilter((AggregatorFilter) filter);
             } else {
-                BinaryFilterCondition binaryFilterCondition = (BinaryFilterCondition)filterCondition;
-
-                Predicate left = this.doFilterCondition(binaryFilterCondition.getLeft());
-                Predicate right = this.doFilterCondition(binaryFilterCondition.getRight());
-
-                if (binaryFilterCondition.getConnector() == FilterConditionConnector.AND) {
-                    predicate = criteriaBuilder.and(new Predicate[]{left, right});
-                } else {
-                    predicate = criteriaBuilder.or(new Predicate[]{left, right});
-                }
+                throw new IllegalArgumentException("Unknown filter type: " + filter.getClass());
             }
 
             return predicate;
         }
 
-        private Predicate unaryFilterCondition(UnaryFilterCondition unaryFilterCondition) {
+        private Predicate doAggregatorFilter(AggregatorFilter aggregatorFilter) {
+            Predicate predicate = null;
+            if (aggregatorFilter != null) {
+                Expression exp = this.getPath(root, aggregatorFilter.getAggregator().getField());
+
+                switch (aggregatorFilter.getAggregator().getOperator()) {
+                    case SUM:
+                        exp = criteriaBuilder.sum(exp);
+                        break;
+                    case AVG:
+                        exp = criteriaBuilder.avg(exp);
+                        break;
+                    case MIN:
+                        exp = criteriaBuilder.min(exp);
+                        break;
+                    case MAX:
+                        exp = criteriaBuilder.max(exp);
+                        break;
+                    case COUNT:
+                        exp = criteriaBuilder.count(exp);
+                        break;
+                }
+                predicate =  this.doExpressionFilter(exp, aggregatorFilter.getFilterOperator(), aggregatorFilter.getValues());
+            }
+
+            return predicate;
+        }
+
+        private Predicate doSimpleFilter(SimpleFilter simpleFilter) {
+            Path<?> path = this.getPath(root, simpleFilter.getField());
+            return this.doExpressionFilter(path, simpleFilter.getFilterOperator(), simpleFilter.getValues());
+        }
+
+        private Predicate doExpressionFilter(Expression exp, FilterOperator filterOperator, List<Object> values) {
+            Predicate predicate;
+
+            switch (filterOperator) {
+                    case EQ:
+                        predicate = criteriaBuilder.equal(exp, values.stream().findFirst().orElse(null));
+                        break;
+                    case NE:
+                        predicate = criteriaBuilder.notEqual(exp, values.stream().findFirst().orElse(null));
+                        break;
+                    case LIKE:
+                        predicate = criteriaBuilder.like(exp, this.addPercentSign(
+                                values.stream().findFirst().orElse("").toString()));
+                        break;
+                    case NOTLIKE:
+                        predicate = criteriaBuilder.notLike(exp, this.addPercentSign(
+                                values.stream().findFirst().orElse("").toString()));
+                        break;
+                    case IN:
+                        predicate = criteriaBuilder.and(exp.in(values.toArray()));
+                        break;
+                    case NOTIN:
+                        predicate = criteriaBuilder.and(criteriaBuilder.not(exp.in(values.toArray())));
+                        break;
+                    case GT:
+                        predicate = criteriaBuilder.greaterThan(exp,
+                                (Comparable) values.stream().findFirst().orElse(null));
+                        break;
+                    case LT:
+                        predicate = criteriaBuilder.lessThan(exp,
+                                (Comparable) values.stream().findFirst().orElse(null));
+                        break;
+                    case GE:
+                        predicate = criteriaBuilder.greaterThanOrEqualTo(
+                                exp,
+                                (Comparable) values.stream().findFirst().orElse(null));
+                        break;
+                    case LE:
+                        predicate = criteriaBuilder.lessThanOrEqualTo(exp,
+                                (Comparable) values.stream().findFirst().orElse(null));
+                        break;
+                    case ISNULL:
+                        predicate = criteriaBuilder.isNull(exp);
+                        break;
+                    case NOTNULL:
+                        predicate = criteriaBuilder.isNotNull(exp);
+                        break;
+                    case BETWEEN:
+                        predicate = criteriaBuilder.between(exp,
+                                (Comparable) values.get(0),
+                                (Comparable) values.get(1));
+                        break;
+                    default:
+                        throw new RuntimeException("Unsupported Filter Operator");
+                }
+
+            return predicate;
+        }
+
+        private Predicate doCompositeFilter(CompositeFilter compositeFilter) {
             List<Predicate> predicates = new ArrayList<>();
 
-            if (unaryFilterCondition != null) {
-                for (FilterBy filterBy : unaryFilterCondition.getFilters()) {
+            if (compositeFilter != null) {
+                for (Filter filter : compositeFilter.getFilters()) {
                     Predicate predicate;
-                    Path path = this.getPath(root, filterBy.getField());
-                    switch (filterBy.getFilterOperator()) {
-                        case EQ:
-                            predicate = criteriaBuilder.equal(path, filterBy.getValues().stream().findFirst().orElse(null));
-                            break;
-                        case NE:
-                            predicate = criteriaBuilder.notEqual(path, filterBy.getValues().stream().findFirst().orElse(null));
-                            break;
-                        case LIKE:
-                            predicate = criteriaBuilder.like(path, this.addPercentSign(
-                                    filterBy.getValues().stream().findFirst().orElse("").toString()));
-                            break;
-                        case NOTLIKE:
-                            predicate = criteriaBuilder.notLike(path, this.addPercentSign(
-                                    filterBy.getValues().stream().findFirst().orElse("").toString()));
-                            break;
-                        case IN:
-                            predicate = criteriaBuilder.and(path.in(filterBy.getValues().toArray()));
-                            break;
-                        case NOTIN:
-                            predicate = criteriaBuilder.and(criteriaBuilder.not(path.in(filterBy.getValues().toArray())));
-                            break;
-                        case GT:
-                            predicate = criteriaBuilder.greaterThan(path,
-                                    (Comparable) filterBy.getValues().stream().findFirst().orElse(null));
-                            break;
-                        case LT:
-                            predicate = criteriaBuilder.lessThan(path,
-                                    (Comparable) filterBy.getValues().stream().findFirst().orElse(null));
-                            break;
-                        case GE:
-                            predicate = criteriaBuilder.greaterThanOrEqualTo(
-                                    path,
-                                    (Comparable) filterBy.getValues().stream().findFirst().orElse(null));
-                            break;
-                        case LE:
-                            predicate = criteriaBuilder.lessThanOrEqualTo(path,
-                                    (Comparable) filterBy.getValues().stream().findFirst().orElse(null));
-                            break;
-                        case ISNULL:
-                            predicate = criteriaBuilder.isNull(path);
-                            break;
-                        case NOTNULL:
-                            predicate = criteriaBuilder.isNotNull(path);
-                            break;
-                        case BETWEEN:
-                            predicate = criteriaBuilder.between(path,
-                                    (Comparable) filterBy.getValues().get(0),
-                                    (Comparable) filterBy.getValues().get(1));
-                            break;
-                        default:
-                            throw new RuntimeException("Unsupported Filter Operator");
+                    if (filter instanceof SimpleFilter) {
+                        predicate = this.doSimpleFilter((SimpleFilter) filter);
+                    } else {
+                        predicate = this.doCompositeFilter((CompositeFilter) filter);
                     }
 
                     if (predicate != null) {
@@ -352,7 +391,9 @@ class DynaQueryExecutor {
                 }
             }
 
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+            return compositeFilter.getConnector() == FilterConnector.AND ?
+                    criteriaBuilder.and(predicates.toArray(new Predicate[0])) :
+                    criteriaBuilder.or(predicates.toArray(new Predicate[0]));
         }
 
         private String addPercentSign(String param) {
@@ -428,7 +469,7 @@ class DynaQueryExecutor {
                 criteriaQuery.multiselect(selections).groupBy(expressions);
 
                 if (groupBy.getHaving() != null) {
-                    criteriaQuery.having(this.doFilterCondition(groupBy.getHaving()));
+                    criteriaQuery.having(this.doFilter(groupBy.getHaving()));
                 }
             }
         }

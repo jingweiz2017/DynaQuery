@@ -13,7 +13,7 @@ import javax.persistence.PreUpdate;
  * @EntityListeners(ViewEntityListener.class)
  * public class WarehouseOrderMonitor implements WarehouseOrderMonitorView {
  *
-* @Author jingwei.zhang on 2023/4/3
+* @Author rocky.zhang on 2023/4/3
 */
 public class ViewEntityListener {
     @PrePersist

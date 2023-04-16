@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
  * @Description
  * Handle all query request that require dynaquery ability.
  *
- * @Author jingwei.zhang on 2023/4/3
+ * @Author rocky.zhang on 2023/4/3
  */
 @Service
 public class DynaQueryService {

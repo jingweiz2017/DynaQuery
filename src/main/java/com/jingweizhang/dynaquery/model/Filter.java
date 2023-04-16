@@ -10,6 +10,6 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
  */
 @JsonTypeInfo(use = JsonTypeInfo.Id.DEDUCTION)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonSubTypes({ @JsonSubTypes.Type(UnaryFilterCondition.class), @JsonSubTypes.Type(BinaryFilterCondition.class) })
-public interface FilterCondition {
+@JsonSubTypes({ @JsonSubTypes.Type(SimpleFilter.class), @JsonSubTypes.Type(CompositeFilter.class) })
+public interface Filter {
 }
