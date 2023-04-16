@@ -61,7 +61,6 @@ public class DynaQueryRequest {
         private List<String> fields;
         private Aggregator aggregator;
         private Filter having;
-        private String alias;
 
         @Data
         @NoArgsConstructor
@@ -78,6 +77,7 @@ public class DynaQueryRequest {
         public static class Aggregator {
             private String field;
             private String operator;
+            private String alias;
         }
     }
 

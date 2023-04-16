@@ -118,7 +118,7 @@ class DynaQueryExecutor {
         //if there is group by, then use group by fields. Projection over group by fields will make result seems wrong.
         if (dynaQuery.getGroupBy() != null) {
             fieldNames = dynaQuery.getGroupBy().getFields();
-            fieldNames.add(dynaQuery.getGroupBy().getAlias());
+            fieldNames.add(dynaQuery.getGroupBy().getAggregator().getAlias());
         } else if (dynaQuery.getProjectBys() != null && !dynaQuery.getProjectBys().isEmpty()) {
             fieldNames = dynaQuery.getProjectBys().stream().map(ProjectBy::getField).collect(Collectors.toList());
         } else {
@@ -444,19 +444,19 @@ class DynaQueryExecutor {
                 Path<Number> fieldPath = root.get(groupBy.getAggregator().getField());
                 switch (groupBy.getAggregator().getOperator()) {
                     case SUM:
-                        selection = criteriaBuilder.sum(fieldPath).alias(groupBy.getAlias());
+                        selection = criteriaBuilder.sum(fieldPath).alias(groupBy.getAggregator().getAlias());
                         break;
                     case AVG:
-                        selection = criteriaBuilder.avg(fieldPath).alias(groupBy.getAlias());
+                        selection = criteriaBuilder.avg(fieldPath).alias(groupBy.getAggregator().getAlias());
                         break;
                     case MAX:
-                        selection = criteriaBuilder.max(fieldPath).alias(groupBy.getAlias());
+                        selection = criteriaBuilder.max(fieldPath).alias(groupBy.getAggregator().getAlias());
                         break;
                     case MIN:
-                        selection = criteriaBuilder.min(fieldPath).alias(groupBy.getAlias());
+                        selection = criteriaBuilder.min(fieldPath).alias(groupBy.getAggregator().getAlias());
                         break;
                     case COUNT:
-                        selection = criteriaBuilder.count(fieldPath).alias(groupBy.getAlias());
+                        selection = criteriaBuilder.count(fieldPath).alias(groupBy.getAggregator().getAlias());
                         break;
                     default:
                         return;

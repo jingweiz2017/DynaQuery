@@ -7,7 +7,7 @@ import java.util.List;
 
 /**
  * @Description
- * BinaryFilterCondition is used to connect two filter conditions with AND/OR operator.
+ * CompositeFilter is used to connect filters with AND/OR operator.
  *
  * @Author rocky.zhang on 2023/3/15
  */

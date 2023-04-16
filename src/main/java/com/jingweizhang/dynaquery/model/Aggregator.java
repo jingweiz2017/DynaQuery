@@ -14,13 +14,20 @@ import lombok.NoArgsConstructor;
 public class Aggregator {
     private String field;
     private AggregateOperator operator;
+    private String alias;
 
-    public Aggregator(String field, AggregateOperator operator) {
+    public Aggregator(String field, AggregateOperator operator, String alias) {
         this.field = field;
         this.operator = operator;
+        this.alias = alias;
     }
 
-    public static Aggregator of(String field, AggregateOperator operator) {
-        return new Aggregator(field, operator);
+    public static Aggregator of(String field, AggregateOperator operator, String alias) {
+        return new Aggregator(field, operator, alias);
+    }
+
+    public String getAlias() {
+        return this.alias != null ?
+                this.alias : this.getOperator().name().toLowerCase() + "_" + this.getField();
     }
 }

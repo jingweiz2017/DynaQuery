@@ -21,28 +21,17 @@ public class GroupBy implements Serializable {
 
     private Filter having;
 
-    private String alias;
-
-    public GroupBy(List<String> fields, Aggregator aggregator, Filter having, String alias) {
+    public GroupBy(List<String> fields, Aggregator aggregator, Filter having) {
         this.fields = fields;
         this.aggregator = aggregator;
         this.having = having;
-        this.alias = alias;
-    }
-
-    public static GroupBy of(List<String> fields, Aggregator aggregator, Filter having, String alias) {
-        return new GroupBy(fields, aggregator, having, alias);
     }
 
     public static GroupBy of(List<String> fields, Aggregator aggregator, Filter having) {
-        return new GroupBy(fields, aggregator, having, null);
-    }
-
-    public static GroupBy of(List<String> fields, Aggregator aggregator, String alias) {
-        return new GroupBy(fields, aggregator, null, alias);
+        return new GroupBy(fields, aggregator, having);
     }
 
     public static GroupBy of(List<String> fields, Aggregator aggregator) {
-        return new GroupBy(fields, aggregator, null, null);
+        return new GroupBy(fields, aggregator, null);
     }
 }

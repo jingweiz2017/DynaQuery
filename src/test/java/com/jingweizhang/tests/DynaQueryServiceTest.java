@@ -96,7 +96,7 @@ public class DynaQueryServiceTest {
     }
 
     @Test
-    public void testFilterAndConditions() {
+    public void testAndFilters() {
         DynaQueryRequest queryRequest = new DynaQueryRequest();
         queryRequest.setTargetView("Order");
         queryRequest.setFilter(
@@ -124,7 +124,7 @@ public class DynaQueryServiceTest {
     }
 
     @Test
-    public void testFilterOrConditions() {
+    public void testOrFilters() {
         DynaQueryRequest queryRequest = new DynaQueryRequest();
         queryRequest.setTargetView("Order");
         queryRequest.setFilter(
@@ -185,10 +185,10 @@ public class DynaQueryServiceTest {
                         ),
                         new DynaQueryRequest.GroupBy.Aggregator(
                                 "amount",
-                                "SUM"
+                                "SUM",
+                                "totalSum"
                         ),
-                        null,
-                        "totalSum"
+                        null
                 )
         );
         Page<Map<String, Object>> result = this.variantQueryService.queryAll(queryRequest, PageRequest.of(pageNum, pageSize), (x) -> x);
@@ -200,7 +200,8 @@ public class DynaQueryServiceTest {
     public void testGroupByWithHaving() {
         DynaQueryRequest.GroupBy.Aggregator aggregator = new DynaQueryRequest.GroupBy.Aggregator(
                 "amount",
-                "SUM"
+                "SUM",
+                "totalSum"
         );
         DynaQueryRequest queryRequest = new DynaQueryRequest();
         queryRequest.setTargetView("Order");
@@ -212,8 +213,7 @@ public class DynaQueryServiceTest {
                             aggregator,
                             "GT",
                             Collections.singletonList("30")
-                        ),
-                        "totalSum"
+                        )
                 )
         );
 
