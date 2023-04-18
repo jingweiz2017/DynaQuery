@@ -29,13 +29,13 @@ public class DynaQueryController {
 
     @PostMapping(value = "/queryOne", produces = "application/json")
     @ResponseBody
-    public Optional<Map<String, Object>> query(@RequestBody DynaQueryRequest queryRequest) {
+    public Optional<Map<String, Object>> queryOne(@RequestBody DynaQueryRequest queryRequest) {
         return this.dynaQueryService.queryOne(queryRequest);
     }
 
     @PostMapping(value = "/queryAll/pageNumber/{pageNum}/pageSize/{pageSize}", produces = "application/json")
     @ResponseBody
-    public Page<Map<String, Object>> query(@RequestBody DynaQueryRequest queryRequest,
+    public Page<Map<String, Object>> queryAll(@RequestBody DynaQueryRequest queryRequest,
                                            @PathVariable int pageNum,
                                            @PathVariable int pageSize) {
         Pageable pageable;
@@ -45,6 +45,12 @@ public class DynaQueryController {
             pageable = Pageable.unpaged();
         }
         return this.dynaQueryService.queryAll(queryRequest, pageable);
+    }
+
+    @PostMapping(value = "/queryAll", produces = "application/json")
+    @ResponseBody
+    public List<Map<String, Object>> queryAll(@RequestBody DynaQueryRequest queryRequest) {
+        return this.dynaQueryService.queryAll(queryRequest, Pageable.unpaged()).getContent();
     }
 
     @GetMapping(value = "/queryAll/query/{id}/pageNumber/{pageNum}/pageSize/{pageSize}", produces = "application/json")
@@ -59,6 +65,12 @@ public class DynaQueryController {
             pageable = Pageable.unpaged();
         }
         return this.dynaQueryService.querySavedQuery(id, pageable);
+    }
+
+    @GetMapping(value = "/queryAll/query/{id}", produces = "application/json")
+    @ResponseBody
+    public List<Map<String, Object>> querySavedQuery(@PathVariable int id) {
+        return this.dynaQueryService.querySavedQuery(id, Pageable.unpaged()).getContent();
     }
 
     @PostMapping("/saveQuery/{name}/isDefault/{isDefault}")
