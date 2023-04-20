@@ -5,7 +5,11 @@ import com.jingweizhang.dynaquery.exception.*;
 import com.jingweizhang.dynaquery.extension.ViewEntity;
 import com.jingweizhang.dynaquery.model.*;
 
-import java.time.Instant;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.net.URI;
+import java.net.URL;
+import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -119,7 +123,9 @@ class DynaQueryNormalizer {
     private Object convert(Class<?> clazz, String value) {
         if (value == null) return null;
 
-        if (clazz == Long.class) {
+        if (clazz == String.class) {
+            return value;
+        } else if (clazz == Long.class) {
             return Long.parseLong(value);
         } else if (clazz == Boolean.class) {
             return Boolean.parseBoolean(value);
@@ -137,6 +143,16 @@ class DynaQueryNormalizer {
             return Double.parseDouble(value);
         } else if (clazz == Instant.class) {
             return Instant.parse(value);
+        } else if (clazz == LocalDate.class) {
+            return LocalDate.parse(value);
+        } else if (clazz == LocalDateTime.class) {
+            return LocalDateTime.parse(value);
+        } else if (clazz == LocalTime.class) {
+            return LocalTime.parse(value);
+        } else if (clazz == BigDecimal.class) {
+            return new BigDecimal(value);
+        } else if (clazz == BigInteger.class) {
+            return new BigInteger(value);
         } else if (Enum.class.isAssignableFrom(clazz)) {
             return Enum.valueOf((Class<Enum>) clazz, value);
         } else {

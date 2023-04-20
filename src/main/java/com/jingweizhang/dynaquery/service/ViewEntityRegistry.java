@@ -7,7 +7,12 @@ import org.springframework.context.annotation.ClassPathScanningCandidateComponen
 import org.springframework.core.type.filter.AssignableTypeFilter;
 
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -62,7 +67,9 @@ public class ViewEntityRegistry {
         return type.isPrimitive() || type.equals(Boolean.class) || type.equals(Byte.class) ||
                 type.equals(Character.class) || type.equals(Short.class) || type.equals(Integer.class) ||
                 type.equals(Long.class) || type.equals(Float.class) || type.equals(Double.class) ||
-                type.equals(String.class) || type.equals(Instant.class) || type.isEnum();
+                type.equals(String.class) || type.equals(Instant.class) || type.isEnum() ||
+                type.equals(LocalTime.class) || type.equals(LocalDate.class) || type.equals(LocalDateTime.class) ||
+                type.equals(BigDecimal.class) || type.equals(BigInteger.class);
     }
 
     public Map<String, Class<?>> getEntityMetaData(Class<?> clazz) {
