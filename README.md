@@ -6,12 +6,12 @@ DynaQuery is a little tool to provide a way for the frontend to compose a query 
 This enabled the frontend with an ability to allow user to compose a query on views exposed by the backend for any customized query user may have at runtime. In this case, only the data view is defined at design-time. How user want to operate the data in the view like filtering, aggregating, or sorting is up to the user to decide at run-time.
 
 ## How it works
-DynaQuery is a thin layer on top of Spring Data Jpa Criteria API. It provides a way to convert a JSON query to a JPA Criteria Query. The JSON query is composed of a list of filters, and aggregations and sorts. The filters are used to filter the data, and the aggregations are used to aggregate the data, etc. The JSON query is converted to a JPA Criteria Query, and then executed against the view build at design-time to get the result.
+DynaQuery is a thin layer on top of Spring Data Jpa Criteria API. It provides a way to convert a JSON query to a JPA Criteria Query. The JSON query is composed of a list of filters, and aggregations and sorts. The filters are used to filter the data, and the aggregations are used to aggregate the data, etc. The JSON query will be converted to a JPA Criteria Query, and then executed against the view build at design-time to get the result.
 
 ## How to use it
-1. Define a view entity. It would be a POJO with JPA @Entity annotation attached and implement a marker interface(ViewEntity). This newly defined Entity can be mapped to a Table or a View in database.
+1. Define a view entity.\ It would be a POJO with JPA @Entity annotation attached and implement a marker interface(ViewEntity). This newly defined Entity can be mapped to a Table or a View in database.
    ![Headers](/screenshots/define-view-entity.png?raw=true)
-2. Put all your view entities in a package. And through configuration file, specify the package name to DynaQuery. DynaQuery will scan the package and find all the view entities that marked as ViewEntity.
+2. Put all your view entities in a package.\ And through configuration file, specify the package name to DynaQuery. DynaQuery will scan the package and find all the view entities that marked as ViewEntity.
    ![Headers](/screenshots/view-entity-scan-config.png?raw=true)
 3. Refer to swagger api `http://localhost:8080/swagger-ui/index.html` for how to compose a JSON query and send it to web controller for execution. 
    ![Headers](/screenshots/swagger-api.png?raw=true)
